@@ -45,6 +45,23 @@ struct proc {
 	struct proc *parent; // Parent process
 	uint64 exit_code;
 	struct file *files[FD_BUFFER_SIZE];
+	unsigned int syscall_times[500];
+	uint64 start_time;
+};
+
+#define MAX_SYSCALL_NUM 500
+
+typedef enum {
+	UnInit,
+	Ready,
+	Running,
+	Exited,
+} TaskStatus;
+
+struct TaskInfo {
+	TaskStatus status;
+	unsigned int syscall_times[MAX_SYSCALL_NUM];
+	int time;
 };
 
 int cpuid();

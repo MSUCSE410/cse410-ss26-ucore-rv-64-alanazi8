@@ -103,6 +103,65 @@ uint64 sys_set_priority(long long prio){
     return -1;
 }
 
+int sys_task_info(struct TaskInfo *ti)
+{
+	struct proc *p = curr_proc();
+	struct TaskInfo kti;
+	kti.status = Running;
+	kti.time = (get_cycle() - p->start_time) / (CPU_FREQ / 1000);
+	memmove(kti.syscall_times, p->syscall_times, sizeof(p->syscall_times));
+	if (copyout(p->pagetable, (uint64)ti, (char *)&kti, sizeof(kti)) < 0)
+		return -1;
+	return 0;
+}
+
+uint64 sys_mmap(uint64 start, uint64 len, int port, int flag, int fd)
+{
+	if (!PGALIGNED(start))
+		return -1;
+	if (len == 0)
+		return 0;
+	if ((port & ~0x7) != 0)
+		return -1;
+	if ((port & 0x7) == 0)
+		return -1;
+	len = PGROUNDUP(len);
+	if (len > (1ULL << 30))
+		return -1;
+	struct proc *p = curr_proc();
+	int perm = ((port & 0x7) << 1) | PTE_U | PTE_V;
+	for (uint64 va = start; va < start + len; va += PGSIZE) {
+		if (walkaddr(p->pagetable, va) != 0)
+			return -1;
+	}
+	for (uint64 va = start; va < start + len; va += PGSIZE) {
+		void *pa = kalloc();
+		if (pa == 0)
+			return -1;
+		memset(pa, 0, PGSIZE);
+		if (mappages(p->pagetable, va, PGSIZE, (uint64)pa, perm) != 0) {
+			kfree(pa);
+			return -1;
+		}
+	}
+	return 0;
+}
+
+uint64 sys_munmap(uint64 start, uint64 len)
+{
+	if (!PGALIGNED(start))
+		return -1;
+	if (len == 0)
+		return 0;
+	len = PGROUNDUP(len);
+	struct proc *p = curr_proc();
+	for (uint64 va = start; va < start + len; va += PGSIZE) {
+		if (walkaddr(p->pagetable, va) == 0)
+			return -1;
+	}
+	uvmunmap(p->pagetable, start, len / PGSIZE, 1);
+	return 0;
+}
 
 extern char trap_page[];
 
@@ -114,6 +173,9 @@ void syscall()
 			   trapframe->a3, trapframe->a4, trapframe->a5 };
 	tracef("syscall %d args = [%x, %x, %x, %x, %x, %x]", id, args[0],
 	       args[1], args[2], args[3], args[4], args[5]);
+	if (id >= 0 && id < 500) {
+		curr_proc()->syscall_times[id]++;
+	}
 	switch (id) {
 	case SYS_write:
 		ret = sys_write(args[0], args[1], args[2]);
@@ -144,6 +206,15 @@ void syscall()
 		break;
 	case SYS_wait4:
 		ret = sys_wait(args[0], args[1]);
+		break;
+	case SYS_task_info:
+		ret = sys_task_info((struct TaskInfo *)args[0]);
+		break;
+	case SYS_mmap:
+		ret = sys_mmap(args[0], args[1], args[2], args[3], args[4]);
+		break;
+	case SYS_munmap:
+		ret = sys_munmap(args[0], args[1]);
 		break;
 	case SYS_spawn:
 		ret = sys_spawn(args[0]);
