@@ -47,7 +47,13 @@ struct proc {
 	struct file *files[FD_BUFFER_SIZE];
 	unsigned int syscall_times[500];
 	uint64 start_time;
+	uint64 stride;    // stride scheduling: accumulated pass value, init 0
+	uint64 priority;  // stride scheduling: process priority (>= 2), init 16
 };
+
+// BigStride constant for stride scheduling: large enough to minimize
+// integer division error; powers-of-2 priorities divide it cleanly
+#define BIG_STRIDE 65536ULL
 
 #define MAX_SYSCALL_NUM 500
 
@@ -73,6 +79,7 @@ void sched();
 void yield();
 int fork();
 int exec(char *);
+int spawn(char *);  // creates child process by loading ELF directly, no memory copy
 int wait(int, int *);
 void add_task(struct proc *);
 struct proc *pop_task();

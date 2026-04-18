@@ -48,21 +48,31 @@ int allocpid()
 	return PID++;
 }
 
+// Stride scheduler: brute-force scan for RUNNABLE proc with minimum stride.
+// Increment winner's stride by BIG_STRIDE/priority before returning so it
+// moves to the back of the virtual priority ordering next round.
 struct proc *fetch_task()
 {
-	int index = pop_queue(&task_queue);
-	if (index < 0) {
-		debugf("No task to fetch\n");
-		return NULL;
-	}
-	debugf("fetch task %d(pid=%d) to task queue\n", index, pool[index].pid);
-	return pool + index;
+    struct proc *p;
+    struct proc *best = NULL;
+    for (p = pool; p < &pool[NPROC]; p++) {
+        if (p->state == RUNNABLE) {
+            if (best == NULL || p->stride < best->stride)
+                best = p;
+        }
+    }
+    if (best != NULL)
+        best->stride += BIG_STRIDE / best->priority;
+    return best;
 }
 
+
+// No-op: stride scheduler discovers RUNNABLE procs via pool scan above.
+// Keeping the old push_queue here would overflow the queue over time
+// because fetch_task no longer drains it.
 void add_task(struct proc *p)
 {
-	push_queue(&task_queue, p - pool);
-	debugf("add task %d(pid=%d) to task queue\n", p - pool, p->pid);
+    (void)p;
 }
 
 // Look in the process table for an UNUSED proc.
@@ -92,6 +102,8 @@ found:
 	memset((void *)p->trapframe, 0, TRAP_PAGE_SIZE);
 	p->context.ra = (uint64)usertrapret;
 	p->context.sp = p->kstack + KSTACK_SIZE;
+	p->stride = 0;     // stride starts at 0 so all new procs enter the scheduler equally
+	p->priority = 16;  // default priority per spec
 	return p;
 }
 
@@ -204,6 +216,26 @@ int exec(char *name)
 	p->max_page = 0;
 	loader(id, p);
 	return 0;
+}
+
+// spawn: equivalent to fork+exec but allocates a fresh proc and loads
+// the ELF directly into it. No uvmcopy — the spec explicitly forbids
+// any memory copying. loader() sets state to RUNNABLE; stride scheduler
+// picks it up on the next fetch_task call.
+int spawn(char *name)
+{
+    int id = get_id_by_name(name);
+    if (id < 0)
+        return -1;
+    struct proc *np = allocproc();
+    if (np == NULL)
+        return -1;
+    np->parent = curr_proc();
+    if (loader(id, np) < 0) {
+        freeproc(np);
+        return -1;
+    }
+    return np->pid;
 }
 
 int wait(int pid, int *code)

@@ -92,15 +92,25 @@ uint64 sys_wait(int pid, uint64 va)
 	return wait(pid, code);
 }
 
+// Copies filename from user VA, delegates to spawn() in proc.c.
+// syscall ID 400 per spec.
 uint64 sys_spawn(uint64 va)
 {
-	// TODO: your job is to complete the sys call
-	return -1;
+    struct proc *p = curr_proc();
+    char name[200];
+    copyinstr(p->pagetable, name, va, 200);
+    return spawn(name);
 }
 
-uint64 sys_set_priority(long long prio){
-    // TODO: your job is to complete the sys call
-    return -1;
+// Sets priority of calling process. Valid range [2, LLONG_MAX] per spec.
+// Returns prio on success, -1 if prio < 2.
+// syscall ID 140 (SYS_setpriority).
+uint64 sys_set_priority(long long prio)
+{
+    if (prio < 2)
+        return -1;
+    curr_proc()->priority = (uint64)prio;
+    return prio;
 }
 
 int sys_task_info(struct TaskInfo *ti)
@@ -218,6 +228,11 @@ void syscall()
 		break;
 	case SYS_spawn:
 		ret = sys_spawn(args[0]);
+		break;
+	// SYS_setpriority (140) was missing from the switch — added to wire up
+	// sys_set_priority so the stride test cases don't silently get -1
+	case SYS_setpriority:
+		ret = sys_set_priority(args[0]);
 		break;
 	default:
 		ret = -1;
