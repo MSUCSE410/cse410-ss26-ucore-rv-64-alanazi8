@@ -43,8 +43,25 @@ struct proc {
 	uint64 max_page;
 	struct proc *parent; // Parent process
 	uint64 exit_code;
-	struct file *files
-		[FD_BUFFER_SIZE]; //File descriptor table, using to record the files opened by the process
+	struct file *files[FD_BUFFER_SIZE]; // File descriptor table
+	unsigned int syscall_times[500]; // per-syscall call count, for sys_task_info
+	uint64 start_time;               // cycle count when process first ran, for elapsed time
+	uint64 stride;                   // stride scheduling: accumulated pass value, starts at 0
+	uint64 priority;                 // stride scheduling: process priority (>=2), default 16
+};
+
+// BIG_STRIDE / priority = how much stride increases per scheduled timeslice.
+// 65536 chosen so integer division error is small and powers-of-2 priorities divide evenly.
+#define BIG_STRIDE 65536ULL
+
+#define MAX_SYSCALL_NUM 500
+
+typedef enum { UnInit, Ready, Running, Exited } TaskStatus;
+
+struct TaskInfo {
+    TaskStatus status;
+    unsigned int syscall_times[MAX_SYSCALL_NUM];
+    int time;
 };
 
 int cpuid();
@@ -55,6 +72,7 @@ void scheduler() __attribute__((noreturn));
 void sched();
 void yield();
 int fork();
+int spawn(char *);  // create child process by loading ELF directly, no memory copy
 int exec(char *, char **);
 int wait(int, int *);
 void add_task(struct proc *);

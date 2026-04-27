@@ -294,3 +294,4 @@
 #define SYS_pidfd_getfd 438
 #define SYS_faccessat2 439
 #define SYS_riscv_flush_icache 244 + 15
+#define SYS_task_info 410  // not in standard Linux table, added for this course

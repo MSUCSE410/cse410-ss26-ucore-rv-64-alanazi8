@@ -204,6 +204,7 @@ uint ialloc(ushort type)
 	bzero(&din, sizeof(din));
 	din.type = xshort(type);
 	din.size = xint(0);
+	din.nlink = xshort(1);  // initialize link count to 1 in the on-disk image at mkfs time
 	// LAB4: You may want to init link count here
 	winode(inum, &din);
 	return inum;
