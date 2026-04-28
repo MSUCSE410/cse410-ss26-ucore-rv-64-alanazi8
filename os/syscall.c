@@ -255,50 +255,50 @@ int sys_waittid(int tid)
 // available[j]       = units of resource j currently free
 // allocation[i][j]   = units of resource j held by thread i
 // request[i][j]      = units of resource j thread i is currently requesting
-static int deadlock_detect(const int available[LOCK_POOL_SIZE],
-                            const int allocation[NTHREAD][LOCK_POOL_SIZE],
-                            const int request[NTHREAD][LOCK_POOL_SIZE])
+static int deadlock_detect(const int available[LOCK_POOL_SIZE], //
+                            const int allocation[NTHREAD][LOCK_POOL_SIZE], //
+                            const int request[NTHREAD][LOCK_POOL_SIZE]) //
 {
-    int work[LOCK_POOL_SIZE];
-    int finish[NTHREAD];
+    int work[LOCK_POOL_SIZE]; //
+    int finish[NTHREAD]; // 
 
     // work = available; all threads start unfinished
-    for (int j = 0; j < LOCK_POOL_SIZE; j++)
-        work[j] = available[j];
-    for (int i = 0; i < NTHREAD; i++)
-        finish[i] = 0;
+    for (int j = 0; j < LOCK_POOL_SIZE; j++) //
+        work[j] = available[j]; // 
+    for (int i = 0; i < NTHREAD; i++) //
+        finish[i] = 0; //
 
     // Repeatedly find a thread whose request can be satisfied with current work
-    int found = 1;
-    while (found) {
-        found = 0;
-        for (int i = 0; i < NTHREAD; i++) {
-            if (finish[i]) continue;
+    int found = 1; //
+    while (found) { //
+        found = 0; //
+        for (int i = 0; i < NTHREAD; i++) { //
+            if (finish[i]) continue; // 
             // Check if request[i] <= work for all resource types
-            int can_finish = 1;
-            for (int j = 0; j < LOCK_POOL_SIZE; j++) {
-                if (request[i][j] > work[j]) {
-                    can_finish = 0;
-                    break;
+            int can_finish = 1; // 
+            for (int j = 0; j < LOCK_POOL_SIZE; j++) { //
+                if (request[i][j] > work[j]) { //
+                    can_finish = 0; //
+                    break; //
                 }
             }
-            if (can_finish) {
+            if (can_finish) { //
                 // Thread i can complete: it releases all its held resources
-                for (int j = 0; j < LOCK_POOL_SIZE; j++)
-                    work[j] += allocation[i][j];
-                finish[i] = 1;
-                found = 1;
+                for (int j = 0; j < LOCK_POOL_SIZE; j++) //
+                    work[j] += allocation[i][j]; // 
+                finish[i] = 1; // 
+                found = 1; //
             }
         }
     }
 
     // If any thread is still unfinished, the system is in deadlock
-    for (int i = 0; i < NTHREAD; i++) {
-        if (!finish[i]) return 1; // deadlock detected
-    }
+    for (int i = 0; i < NTHREAD; i++) { //
+        if (!finish[i]) return 1; // deadlock detected //
+    } //
     return 0; // safe state
 }
-
+//////////////////
 int sys_mutex_create(int blocking)
 {
     struct mutex *m = mutex_create(blocking);
@@ -307,9 +307,9 @@ int sys_mutex_create(int blocking)
         return -1;
     }
     int mutex_id = m - curr_proc()->mutex_pool;
-    // LAB5: (4-1) mutex starts unlocked = 1 available resource
-    curr_proc()->mutex_available[mutex_id] = 1;
-    debugf("create mutex %d", mutex_id);
+    // LAB5: (4-1) mutex starts unlocked = 1 available resource //
+    curr_proc()->mutex_available[mutex_id] = 1; //
+    debugf("create mutex %d", mutex_id); //
     return mutex_id;
 }
 
@@ -319,30 +319,30 @@ int sys_mutex_lock(int mutex_id)
         errorf("Unexpected mutex id %d", mutex_id);
         return -1;
     }
-    struct proc *p = curr_proc();
-    int tid = curr_thread()->tid;
+    struct proc *p = curr_proc(); //
+    int tid = curr_thread()->tid; //
 
-    if (p->deadlock_detect_enabled) {
+    if (p->deadlock_detect_enabled) { //
         // LAB5: (4-1) Record this thread's request, then run banker's algorithm.
         // The request stays set while we're waiting so other threads see our state.
-        p->mutex_request[tid][mutex_id] = 1;
-        if (deadlock_detect(p->mutex_available, p->mutex_allocation, p->mutex_request)) {
+        p->mutex_request[tid][mutex_id] = 1; //
+        if (deadlock_detect(p->mutex_available, p->mutex_allocation, p->mutex_request)) { //
             // Deadlock would result: reject and clear our request
-            p->mutex_request[tid][mutex_id] = 0;
-            return -0xDEAD;
+            p->mutex_request[tid][mutex_id] = 0; //
+            return -0xDEAD; //
         }
         // Safe: proceed. Request remains set during any blocking inside mutex_lock.
     }
 
-    mutex_lock(&p->mutex_pool[mutex_id]);
+    mutex_lock(&p->mutex_pool[mutex_id]); //
 
-    if (p->deadlock_detect_enabled) {
+    if (p->deadlock_detect_enabled) { //
         // Lock acquired: update allocation and available, clear request
-        p->mutex_request[tid][mutex_id] = 0;
-        p->mutex_allocation[tid][mutex_id]++;
-        p->mutex_available[mutex_id]--;
+        p->mutex_request[tid][mutex_id] = 0; //
+        p->mutex_allocation[tid][mutex_id]++; // 
+        p->mutex_available[mutex_id]--; //
     }
-    return 0;
+    return 0; //
 }
 
 int sys_mutex_unlock(int mutex_id)
@@ -352,28 +352,28 @@ int sys_mutex_unlock(int mutex_id)
 		return -1;
 	}
 	// LAB5: (4-1) You may want to maintain some variables for detect here
-	struct proc *p = curr_proc();
-    int tid = curr_thread()->tid;
-    if (p->deadlock_detect_enabled) {
+	struct proc *p = curr_proc(); //
+    int tid = curr_thread()->tid; //
+    if (p->deadlock_detect_enabled) { //
         // LAB5: (4-1) thread releases the mutex
-        if (p->mutex_allocation[tid][mutex_id] > 0)
-            p->mutex_allocation[tid][mutex_id]--;
-        p->mutex_available[mutex_id]++;
+        if (p->mutex_allocation[tid][mutex_id] > 0) //
+            p->mutex_allocation[tid][mutex_id]--; //
+        p->mutex_available[mutex_id]++; //
     }
-    mutex_unlock(&p->mutex_pool[mutex_id]);
-    return 0;
+    mutex_unlock(&p->mutex_pool[mutex_id]);//
+    return 0;//
 }
 
 int sys_semaphore_create(int res_count)
 {
-    struct semaphore *s = semaphore_create(res_count);
+    struct semaphore *s = semaphore_create(res_count); 
     if (s == NULL) {
         errorf("fail to create semaphore: out of resource");
         return -1;
     }
     int sem_id = s - curr_proc()->semaphore_pool;
     // LAB5: (4-2) semaphore starts with res_count available units
-    curr_proc()->sem_available[sem_id] = res_count;
+    curr_proc()->sem_available[sem_id] = res_count; //
     debugf("create semaphore %d", sem_id);
     return sem_id;
 }
@@ -386,18 +386,18 @@ int sys_semaphore_up(int semaphore_id)
 		return -1;
 	}
 	// LAB5: (4-2) You may want to maintain some variables for detect here
-	struct proc *p = curr_proc();
-    int tid = curr_thread()->tid;
+	struct proc *p = curr_proc(); //
+    int tid = curr_thread()->tid; //
 
-    if (p->deadlock_detect_enabled) {
+    if (p->deadlock_detect_enabled) { //
         // LAB5: (4-2) Thread releases one semaphore unit
-        if (p->sem_allocation[tid][semaphore_id] > 0)
-            p->sem_allocation[tid][semaphore_id]--;
-        p->sem_available[semaphore_id]++;
+        if (p->sem_allocation[tid][semaphore_id] > 0) //
+            p->sem_allocation[tid][semaphore_id]--; //
+        p->sem_available[semaphore_id]++; // 
     }
 
-    semaphore_up(&p->semaphore_pool[semaphore_id]);
-    return 0;
+    semaphore_up(&p->semaphore_pool[semaphore_id]); //
+    return 0; //
 }
 
 int sys_semaphore_down(int semaphore_id)
@@ -409,26 +409,26 @@ int sys_semaphore_down(int semaphore_id)
 	}
 	// LAB5: (4-2) You may want to maintain some variables for detect
 	//       or call your detect algorithm here
-	struct proc *p = curr_proc();
-    int tid = curr_thread()->tid;
+	struct proc *p = curr_proc(); //
+    int tid = curr_thread()->tid; //
 
-    if (p->deadlock_detect_enabled) {
-        // LAB5: (4-2) Record request, run banker's algorithm before blocking
-        p->sem_request[tid][semaphore_id] = 1;
-        if (deadlock_detect(p->sem_available, p->sem_allocation, p->sem_request)) {
+    if (p->deadlock_detect_enabled) {//
+        // LAB5: (4-2) Record request, run banker's algorithm before blocking 
+        p->sem_request[tid][semaphore_id] = 1; //
+        if (deadlock_detect(p->sem_available, p->sem_allocation, p->sem_request)) { //
             // Deadlock would result: reject
-            p->sem_request[tid][semaphore_id] = 0;
-            return -0xDEAD;
+            p->sem_request[tid][semaphore_id] = 0; //
+            return -0xDEAD; //
         }
         // Safe: request stays set during any blocking inside semaphore_down
     }
-	semaphore_down(&p->semaphore_pool[semaphore_id]);
+	semaphore_down(&p->semaphore_pool[semaphore_id]); //
 
-	if (p->deadlock_detect_enabled) {
+	if (p->deadlock_detect_enabled) { //
         // Acquired: update state, clear request
-        p->sem_request[tid][semaphore_id] = 0;
-        p->sem_allocation[tid][semaphore_id]++;
-        p->sem_available[semaphore_id]--;
+        p->sem_request[tid][semaphore_id] = 0; //
+        p->sem_allocation[tid][semaphore_id]++; //
+        p->sem_available[semaphore_id]--; //
     }
 	return 0;
 }
@@ -474,12 +474,12 @@ int sys_condvar_wait(int cond_id, int mutex_id)
 
 // LAB5: (2) Enables or disables deadlock detection for the calling process.
 // is_enable: 1 = enable, 0 = disable. Returns -1 on bad parameter, 0 otherwise.
-int sys_enable_deadlock_detect(int is_enable)
+int sys_enable_deadlock_detect(int is_enable) //
 {
-    if (is_enable != 0 && is_enable != 1)
-        return -1;
-    curr_proc()->deadlock_detect_enabled = is_enable;
-    return 0;
+    if (is_enable != 0 && is_enable != 1) //
+        return -1; //
+    curr_proc()->deadlock_detect_enabled = is_enable; //
+    return 0; // 
 }
 
 extern char trap_page[];
@@ -573,8 +573,8 @@ void syscall()
 		ret = sys_condvar_wait(args[0], args[1]);
 		break;
 	// LAB5: (2) you may need to add case SYS_enable_deadlock_detect here
-	case SYS_enable_deadlock_detect:
-		ret = sys_enable_deadlock_detect(args[0]);
+	case SYS_enable_deadlock_detect: //
+		ret = sys_enable_deadlock_detect(args[0]); //
 		break;
 	default:
 		ret = -1;
